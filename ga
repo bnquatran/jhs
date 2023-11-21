@@ -1,0 +1,77 @@
+%%
+clear all
+clc
+
+%%
+population = 8;
+population = [1:population]';
+
+seed1 = randi([1 2147483647], max(population), 1);
+seed2 = randi([1 2147483647], max(population), 1);
+
+x1Random = mod(48271 * seed1, 2^31 - 1);
+x2Random = mod(48271 * seed2, 2^31 - 1);
+x1Random = x1Random / (2^31 - 1);
+x2Random = x2Random / (2^31 - 1);
+
+x1 = -2 + 4 * x1Random;
+x2 = -2 + 4 * x2Random;
+
+x1Decimal = round(15 * (x1 + 2) / 4, 0);
+x2Decimal = round(15 * (x2 + 2) / 4, 0);
+
+x1Binary = dec2bin(x1Decimal, 4);
+x2Binary = dec2bin(x2Decimal, 4);
+
+chromosome = [x1Binary x2Binary];
+
+ObjectiveFunction = 3 + exp(-x1 - x2.^2) ./ (0.1 .* (x1 + 3));
+
+t = table(population, x1Random, x2Random, x1, x2, x1Decimal, x2Decimal, x1Binary, x2Binary, chromosome, ObjectiveFunction);
+t = sortrows(t, "ObjectiveFunction", "ascend");
+
+Sum = sum(t.ObjectiveFunction);
+Average = mean(t.ObjectiveFunction);
+Min = min(t.ObjectiveFunction);
+Max = max(t.ObjectiveFunction);
+
+probability = t.ObjectiveFunction / Sum;
+
+CumulativeProbability = zeros(size(population));
+for i = 1:max(population)
+    if i == 1
+        CumulativeProbability(i) = probability(i);
+    else
+        CumulativeProbability(i) = CumulativeProbability(i - 1) + probability(i);
+    end
+end
+
+SelectionRange = repmat("", size(population));
+for i = 1:max(population)
+    if i == 1
+        SelectionRange(i) = "[0 - " + string(CumulativeProbability(i)) + "]";
+    else
+        SelectionRange(i) = "(" + string(CumulativeProbability(i - 1)) + " - " + string(CumulativeProbability(i)) + "]";
+    end
+end
+
+t.CumulativeProbability = CumulativeProbability;
+t.SelectionRange = SelectionRange;
+
+%%
+NewPopulation = population;
+
+NewSeed = randi([1 2147483647], max(population), 1);
+
+NewRandom = mod(48271 * seed1, 2^31 - 1);
+NewRandom = NewRandom / (2^31 - 1);
+
+parent = zeros(size(population));
+for i = 1:max(population)
+    for j = 1:max(population)
+        if NewRandom(i) <= CumulativeProbability(j)
+            parent(i) = t.population(j);
+            break;
+        end
+    end
+end
