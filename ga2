@@ -1,0 +1,163 @@
+%%
+clear all
+clc
+
+%%
+
+bits = 4;
+
+population = 8;
+population = [1:population]';
+
+CrossoverPercent = .25;
+CrossoverPoint = 3;
+
+MutationPercent = .01;
+
+generation = 9000;
+
+%% initial generation
+x1Random = LehmerNumbers(max(population));
+x2Random = LehmerNumbers(max(population));
+
+x1 = -2 + bits * x1Random;
+x2 = -2 + bits * x2Random;
+
+x1Decimal = round(15 * (x1 + 2) / bits, 0);
+x2Decimal = round(15 * (x2 + 2) / bits, 0);
+
+x1Binary = dec2bin(x1Decimal, bits);
+x2Binary = dec2bin(x2Decimal, bits);
+
+chromosome = [x1Binary x2Binary];
+
+ObjectiveFunction = 3 + exp(-x1 - x2.^2) ./ (0.1 .* (x1 + 3));
+
+%% rank fitness
+
+rf = table(population, x1Random, x2Random, x1, x2, x1Decimal, x2Decimal, x1Binary, x2Binary, chromosome, ObjectiveFunction);
+
+for q = 1:generation
+    rf = sortrows(rf, "ObjectiveFunction", "ascend");
+    
+    probability = rf.ObjectiveFunction / sum(rf.ObjectiveFunction);
+    CumulativeProbability = zeros(size(population));
+    
+    for i = 1:max(population)
+        if i == 1
+            CumulativeProbability(i) = probability(i);
+        else
+            CumulativeProbability(i) = CumulativeProbability(i - 1) + probability(i);
+        end
+    end
+    
+    SelectionRange = repmat("", size(population));
+    for i = 1:max(population)
+        if i == 1
+            SelectionRange(i) = "[0 - " + string(CumulativeProbability(i)) + "]";
+        else
+            SelectionRange(i) = "(" + string(CumulativeProbability(i - 1)) + " - " + string(CumulativeProbability(i)) + "]";
+        end
+    end
+    
+    rf.CumulativeProbability = CumulativeProbability;
+    rf.SelectionRange = SelectionRange;
+    
+    NewRandom1 = LehmerNumbers(max(population));
+    parent = zeros(size(population));
+    for i = 1:max(population)
+        for j = 1:max(population)
+            if NewRandom1(i) <= CumulativeProbability(j)
+                parent(i) = rf.population(j);
+                break;
+            end
+        end
+    end
+    
+    p = table(NewRandom1, parent);
+    
+    %% crossover
+    
+    NewChromosome = population;
+    NewRandom2 = LehmerNumbers(max(population));
+    
+    nc = table(NewChromosome, NewRandom2);
+    nc = sortrows(nc, "NewRandom2", "ascend");
+    nc = nc(1:CrossoverPercent*max(population), :);
+    
+    oc = string(rf.chromosome);
+    OldChromosome = repmat("", size(nc, 1), 1);
+    for i = 1:size(nc, 1)
+        for j = 1:max(population)
+            if nc.NewRandom2(i) <= CumulativeProbability(j)
+                OldChromosome(i) = oc(j);
+                break;
+            end
+        end
+    end
+    nc.OldChromosome = char(OldChromosome);
+    
+    RandomIndividuals = randperm(size(nc, 1), size(nc, 1));
+    PrimeBinary = repmat("", size(nc, 1), 1);                                                                                                                                                                                                                                           
+    i = 1;
+    while i < length(RandomIndividuals)
+        PrimeBinary(i) = string([nc{RandomIndividuals(i), 3}(1:CrossoverPoint) nc{RandomIndividuals(i+1), 3}(CrossoverPoint+1:bits*2)]);
+        PrimeBinary(i+1) = string([nc{RandomIndividuals(i+1), 3}(1:CrossoverPoint) nc{RandomIndividuals(i), 3}(CrossoverPoint+1:bits*2)]);
+        i = i + 2;
+    end
+    
+    children = table(nc.NewChromosome, char(PrimeBinary));
+    children.Properties.VariableNames = ["ChromosomePrime", "PrimeBinary"];
+    
+    %% mutation
+    NewGeneration = repmat("", size(population));
+    for i = 1:max(population)
+        index = find(rf.population == p.parent(i));
+        NewGeneration(i) = oc(index);
+    end
+    
+    i = 1;
+    while i <= size(children, 1)
+        NewGeneration(children.ChromosomePrime(i)) = string(children{i, 2});
+        i = i + 1;
+    end
+    
+    for i = 1:size(NewGeneration, 1)
+        m = NewGeneration(i);
+        m = char(m);
+        for j = 1:bits*2
+            if rand <= MutationPercent & m(j) == '0'
+                m(j) = '1';
+            elseif rand <= MutationPercent & m(j) == '1'
+                m(j) = '0';
+            end
+        end
+        NewGeneration(i) = string(m);
+    end
+    NewGeneration = char(NewGeneration);
+    
+    x1BinaryNew = NewGeneration(:, 1:bits);
+    x2BinaryNew = NewGeneration(:, bits+1:end);
+    
+    x1DecimalNew = bin2dec(NewGeneration(:, 1:bits));
+    x2DecimalNew = bin2dec(NewGeneration(:, bits+1:end));
+    
+    x1New = x1DecimalNew * bits / 15 - 2;
+    x2New = x2DecimalNew * bits / 15 - 2;
+    
+    ObjectiveFunctionNew = 3 + exp(-x1New - x2New.^2) ./ (0.1 .* (x1New + 3));
+    
+    ng = table(population, NewGeneration, x1BinaryNew, x2BinaryNew, x1DecimalNew, x2DecimalNew, x1New, x2New, ObjectiveFunctionNew);
+    
+    rf = ng;
+    rf.Properties.VariableNames = ["population", "chromosome", "x1Binary", "x2Binary", "x1DecimalNew", "x2Decimal", "x1New", "x2New", "ObjectiveFunction"];
+
+end
+
+rf
+%% generate random numbers
+function RandomNumbers = LehmerNumbers(population)
+    seed = randi([1 2147483647], population, 1);
+    RandomNumbers = mod(48271 * seed, 2^31 - 1);
+    RandomNumbers = RandomNumbers / (2^31 - 1);
+end
