@@ -12,15 +12,15 @@ cp = 1000;
 T_air = 25;
 h = 100;
 k = 287;
-T_b = 70;
-theta_b = T_b - T_air;
+T_b = 85;
 L_cpu = 70 * 10^-3;
-q_cpu_dot
+q_cpu_dot = 100;
 
 P = 4 * x;
 A_cpu = L_cpu^2;
 m = sqrt((h * P) / (k * A_cpu));
 A_b = (N * x + (N - 1) * spacing)^2 - N * A_cpu;
+theta_b = T_b - T_air;
 M = theta_b * sqrt(h * P * k * A_cpu);
 q_fin_dot = M * (sinh(m * L_cpu) + h / (m * k) * cosh(m * L_cpu)) / (cosh(m * L_cpu) + h / (m * k) * sinh(m * L_cpu));
 
